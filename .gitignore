@@ -1,0 +1,7 @@
+### Rust ###
+debug/
+target/
+
+### macOS ###
+# General
+.DS_Store
