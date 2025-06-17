@@ -7,7 +7,7 @@ use alloc::slice;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::ffi::c_void;
-use core::mem::ManuallyDrop;
+use core::mem;
 use core::panic::PanicInfo;
 
 #[global_allocator]
@@ -32,7 +32,7 @@ fn print_on_host(message: String) {
 #[unsafe(no_mangle)]
 pub extern "C" fn allocate(bytes_length: usize) -> *mut c_void {
     let buffer = Vec::with_capacity(bytes_length);
-    let pointer = ManuallyDrop::new(buffer).as_mut_ptr();
+    let pointer = mem::ManuallyDrop::new(buffer).as_mut_ptr();
 
     pointer
 }
@@ -74,4 +74,22 @@ pub fn read_number_from_memory(pointer: *const u8, bytes_length: usize) -> f64 {
 
         f64::from_ne_bytes(bytes_array)
     }
+}
+
+#[unsafe(no_mangle)]
+pub static STRING_INFO_BYTES: usize = 8;
+
+#[unsafe(no_mangle)]
+pub fn set_hello_on_memory() -> *mut u32 {
+    let binary_string = Vec::from(b"Hello from Wasm! \xF0\x9F\x92\x9C");
+    let output_pointer = allocate(STRING_INFO_BYTES) as *mut u32;
+
+    unsafe {
+        *output_pointer.offset(0) = binary_string.as_ptr() as u32;
+        *output_pointer.offset(1) = binary_string.len() as u32;
+    }
+
+    mem::forget(binary_string);
+
+    output_pointer
 }

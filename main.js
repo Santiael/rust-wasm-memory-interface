@@ -83,6 +83,24 @@ class Allocator {
   }
 }
 
+function getWasmString(memory, stringInfoPointer) {
+  const stringInfoView = new Uint32Array(memory.buffer, stringInfoPointer, 2);
+  const stringPointer = stringInfoView[0];
+  const stringLength = stringInfoView[1];
+
+  const memoryU8View = new Uint8Array(memory.buffer);
+  const stringBytes = memoryU8View.subarray(stringPointer, stringPointer + stringLength);
+  const string = new TextDecoder('utf-8').decode(stringBytes);
+
+  return [
+    string,
+    {
+      pointer: stringPointer,
+      size: stringLength
+    }
+  ];
+}
+
 async function App() {
   const { instance } = await WebAssembly.instantiate(wasmBuffer, {
     env: {
@@ -95,7 +113,17 @@ async function App() {
       },
     }
   });
-  const { memory, allocate, deallocate, read_bytes_from_memory, read_number_from_memory } = instance.exports;
+
+  const {
+    memory,
+    allocate,
+    deallocate,
+    read_bytes_from_memory,
+    read_number_from_memory,
+    STRING_INFO_BYTES,
+    set_hello_on_memory
+  } = instance.exports;
+
   const allocator = new Allocator(memory, allocate, deallocate);
 
   const numberRef = allocator.setInMemory(Number.MAX_VALUE);
@@ -114,6 +142,17 @@ async function App() {
   allocator.free(numberRef);
   allocator.free(booleanRef);
   allocator.free(stringRef);
+
+  const helloInfoPointer = set_hello_on_memory();
+
+  const [value, helloStringRef] = getWasmString(memory, helloInfoPointer);
+
+  console.log('[js] reading string allocated by wasm:', value);
+  
+  read_bytes_from_memory(helloStringRef.pointer, helloStringRef.size);
+
+  allocator.free({ pointer: helloInfoPointer, size: STRING_INFO_BYTES });
+  allocator.free(helloStringRef);
 }
 
 App();
